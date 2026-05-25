@@ -9,12 +9,11 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using KWUStudentManager.Models;
-using Newtonsoft.Json;
 
-namespace KWUStudentManager
+namespace KwuTodoAI
 {
     /// <summary>
     /// Python FastAPI 서버(localhost:8000)와 HTTP로 통신하는 클라이언트입니다.
@@ -35,6 +34,9 @@ namespace KWUStudentManager
         // ── 싱글턴 ────────────────────────────────────────────────
         // 앱 전역에서 공유하는 싱글턴 인스턴스
         // 사용법: ApiClient.Instance.GetTodosAsync()
+        private static readonly JsonSerializerOptions _jsonOptions =
+            new() { PropertyNameCaseInsensitive = true };
+
         private static ApiClient _instance;
         public static ApiClient Instance => _instance ?? (_instance = new ApiClient());
 
@@ -57,10 +59,10 @@ namespace KWUStudentManager
 
         // [GET /todos/generate]
         // 크롤링 + LLM 분석으로 AI가 생성한 TODO 목록을 가져옵니다.
-        // AI 처리 시간이 있으므로 타임아웃이 길게 설정되어 있습니다.
         public async Task<List<TodoItem>> GetAIGeneratedTodosAsync()
         {
-            return await GetAsync<List<TodoItem>>("/todos/generate", "AI TODO 생성");
+            var response = await GetAsync<TodoResponse>("/todos/generate", "AI TODO 생성");
+            return response?.Todos ?? new List<TodoItem>();
         }
 
         // [GET /todos]
@@ -128,23 +130,20 @@ namespace KWUStudentManager
             try
             {
                 string json = await _httpClient.GetStringAsync(endpoint);
-                return JsonConvert.DeserializeObject<T>(json) ?? new T();
+                return JsonSerializer.Deserialize<T>(json, _jsonOptions) ?? new T();
             }
             catch (HttpRequestException)
             {
-                // 서버 미실행 또는 네트워크 오류
                 ShowServerOfflineMessage(actionName);
                 return new T();
             }
             catch (TaskCanceledException)
             {
-                // 타임아웃
                 ShowTimeoutMessage(actionName);
                 return new T();
             }
-            catch (JsonException ex)
+            catch (System.Text.Json.JsonException ex)
             {
-                // 서버 응답 형식 불일치
                 MessageBox.Show(
                     string.Format("서버 응답을 파싱하는 중 오류가 발생했습니다.\n작업: {0}\n오류: {1}",
                         actionName, ex.Message),
@@ -163,7 +162,7 @@ namespace KWUStudentManager
         {
             try
             {
-                string json     = JsonConvert.SerializeObject(data);
+                string json     = JsonSerializer.Serialize(data, _jsonOptions);
                 var    content  = new StringContent(json, Encoding.UTF8, "application/json");
                 var    response = await _httpClient.PostAsync(endpoint, content);
                 return response.IsSuccessStatusCode;
@@ -178,7 +177,7 @@ namespace KWUStudentManager
         {
             try
             {
-                string json     = JsonConvert.SerializeObject(data);
+                string json     = JsonSerializer.Serialize(data, _jsonOptions);
                 var    content  = new StringContent(json, Encoding.UTF8, "application/json");
                 var    response = await _httpClient.PutAsync(endpoint, content);
                 return response.IsSuccessStatusCode;
