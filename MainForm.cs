@@ -105,7 +105,16 @@ namespace KwuTodoAI
             pnlTodoTop.Resize   += (s, e) => btnRefresh.Location = new Point(pnlTodoTop.Width - 112, 6);
             btnRefresh.Location  = new Point(620, 6);
 
-            pnlTodoTop.Controls.AddRange(new Control[] { lblTodoTitle, btnRefresh });
+            var btnAdd = MakeBtn("➕ 추가", 80, 34);
+            btnAdd.Font      = new Font("맑은 고딕", 9f, FontStyle.Bold);
+            btnAdd.BackColor = Color.FromArgb(55, 175, 115);
+            btnAdd.ForeColor = Color.White;
+            btnAdd.Anchor    = AnchorStyles.Right | AnchorStyles.Top;
+            btnAdd.Click    += (s, e) => OpenAddTodoForm();
+            pnlTodoTop.Resize += (s, e) => btnAdd.Location = new Point(pnlTodoTop.Width - 200, 6);
+            btnAdd.Location   = new Point(534, 6);
+
+            pnlTodoTop.Controls.AddRange(new Control[] { lblTodoTitle, btnAdd, btnRefresh });
 
             pnlStats = new Panel { Height = 32, Dock = DockStyle.Top };
             lblSummary = new Label { Text = "🔄 AI 생성 버튼을 눌러 TODO를 불러오세요", Font = new Font("맑은 고딕", 8.5f), AutoSize = true, Location = new Point(2, 8) };
@@ -226,8 +235,8 @@ namespace KwuTodoAI
         {
             Total       = todos.Count,
             Urgent      = todos.Count(t => t.DDay <= 0 && !t.IsCompleted),
-            High        = todos.Count(t => t.Priority is "높음" or "긴급"),
-            Exams       = todos.Count(t => t.Type == "시험"),
+            High        = todos.Count(t => t.Priority is "high" or "높음" or "긴급"),
+            Exams       = todos.Count(t => t.Type == "시험" || t.Category == "학업"),
             Assignments = todos.Count(t => t.Type == "과제"),
         };
 
@@ -290,17 +299,26 @@ namespace KwuTodoAI
             };
 
             var lblDDay = new Label { Text = todo.DDayText, Font = new Font("맑은 고딕", 9f, FontStyle.Bold), ForeColor = todo.DDay <= 3 ? URGENT : SUBTEXT, Size = new Size(58, 22), TextAlign = ContentAlignment.MiddleCenter, Anchor = AnchorStyles.Right | AnchorStyles.Top };
-            var lblPri  = new Label { Text = todo.Priority, Font = new Font("맑은 고딕", 8f, FontStyle.Bold), ForeColor = todo.PriorityColor, BackColor = Color.FromArgb(22, todo.PriorityColor.R, todo.PriorityColor.G, todo.PriorityColor.B), Size = new Size(44, 20), TextAlign = ContentAlignment.MiddleCenter, Anchor = AnchorStyles.Right | AnchorStyles.Top };
-            var lblSub  = new Label { Text = $"📅 {todo.DueDate}  |  {todo.Reason}", Font = new Font("맑은 고딕", 8.5f), ForeColor = SUBTEXT, Location = new Point(70, 36), Size = new Size(card.Width - 190, 18) };
-            var lblAct  = new Label { Text = todo.ActionItems.Count > 0 ? "✔ " + string.Join("  ·  ", todo.ActionItems.Take(2)) : "", Font = new Font("맑은 고딕", 8f), ForeColor = SUBTEXT, Location = new Point(70, 56), Size = new Size(card.Width - 170, 16) };
+            // PriorityLabel로 한국어 표시 ("high" → "높음")
+            var lblPri  = new Label { Text = todo.PriorityLabel, Font = new Font("맑은 고딕", 8f, FontStyle.Bold), ForeColor = todo.PriorityColor, BackColor = Color.FromArgb(22, todo.PriorityColor.R, todo.PriorityColor.G, todo.PriorityColor.B), Size = new Size(44, 20), TextAlign = ContentAlignment.MiddleCenter, Anchor = AnchorStyles.Right | AnchorStyles.Top };
+            var lblSub  = new Label { Text = $"📅 {todo.DueDate}  |  {(string.IsNullOrEmpty(todo.Reason) ? todo.Source : todo.Reason)}", Font = new Font("맑은 고딕", 8.5f), ForeColor = SUBTEXT, Location = new Point(70, 36), Size = new Size(card.Width - 220, 18) };
+            var lblAct  = new Label { Text = todo.ActionItems.Count > 0 ? "✔ " + string.Join("  ·  ", todo.ActionItems.Take(2)) : "", Font = new Font("맑은 고딕", 8f), ForeColor = SUBTEXT, Location = new Point(70, 56), Size = new Size(card.Width - 200, 16) };
 
-            card.Controls.AddRange(new Control[] { chk, lblIcon, lblTitle, lblDDay, lblPri, lblSub, lblAct });
+            // 편집 버튼
+            var btnEdit = MakeBtn("✏️", 28, 28);
+            btnEdit.Font      = new Font("Segoe UI Emoji", 10f);
+            btnEdit.BackColor = SURFACE2;
+            btnEdit.Anchor    = AnchorStyles.Right | AnchorStyles.Top;
+            btnEdit.Click    += (s, e) => OpenEditTodoForm(todo);
+
+            card.Controls.AddRange(new Control[] { chk, lblIcon, lblTitle, lblDDay, lblPri, btnEdit, lblSub, lblAct });
 
             card.Resize += (s, e) =>
             {
-                lblTitle.Width = card.Width - 190; lblSub.Width = card.Width - 190; lblAct.Width = card.Width - 170;
-                lblDDay.Location = new Point(card.Width - 124, 10);
-                lblPri.Location  = new Point(card.Width - 58,  10);
+                lblTitle.Width = card.Width - 220; lblSub.Width = card.Width - 220; lblAct.Width = card.Width - 200;
+                lblDDay.Location  = new Point(card.Width - 156, 10);
+                lblPri.Location   = new Point(card.Width - 90,  10);
+                btnEdit.Location  = new Point(card.Width - 40,  28);
             };
 
             card.MouseEnter += (s, e) => card.BackColor = SURFACE2;
@@ -374,6 +392,33 @@ namespace KwuTodoAI
             var btn = new Button { Text = text, Size = new Size(w, h), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btn.FlatAppearance.BorderSize = 0;
             return btn;
+        }
+
+        // ── TODO 추가 / 편집 ─────────────────────────────────────────
+        private void OpenAddTodoForm()
+        {
+            using var form = new TodoForm(_http);
+            if (form.ShowDialog(this) == DialogResult.OK && form.Result != null)
+            {
+                _todos.Add(form.Result);
+                UpdateStats(ComputeStats(_todos));
+                RebuildTodoList();
+                RebuildCalendar();
+            }
+        }
+
+        private void OpenEditTodoForm(TodoItem todo)
+        {
+            using var form = new TodoForm(_http, todo);
+            if (form.ShowDialog(this) == DialogResult.OK && form.Result != null)
+            {
+                int idx = _todos.FindIndex(t => t.Id == todo.Id);
+                if (idx >= 0) _todos[idx] = form.Result;
+                else          _todos.Add(form.Result);
+                UpdateStats(ComputeStats(_todos));
+                RebuildTodoList();
+                RebuildCalendar();
+            }
         }
 
         protected override void Dispose(bool disposing) { if (disposing) _http.Dispose(); base.Dispose(disposing); }
