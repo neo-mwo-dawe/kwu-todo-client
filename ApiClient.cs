@@ -37,7 +37,7 @@ namespace KwuTodoAI
         private static readonly JsonSerializerOptions _jsonOptions =
             new() { PropertyNameCaseInsensitive = true };
 
-        private static ApiClient _instance;
+        private static ApiClient? _instance;
         public static ApiClient Instance => _instance ?? (_instance = new ApiClient());
 
         // ── 생성자 ────────────────────────────────────────────────

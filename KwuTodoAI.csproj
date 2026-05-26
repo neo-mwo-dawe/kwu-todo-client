@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>KwuTodoAI</AssemblyName>
+    <RootNamespace>KwuTodoAI</RootNamespace>
+    <ApplicationIcon />
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- MainForm_Integration.cs 는 예시/참고용 파일이므로 빌드에서 제외 -->
+  <ItemGroup>
+    <Compile Remove="MainForm_Integration.cs" />
+  </ItemGroup>
+
+</Project>
