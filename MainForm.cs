@@ -282,35 +282,76 @@ namespace KwuTodoAI
 
         private Panel MakeCard(TodoItem todo)
         {
-            // flpTodos 너비가 아직 0이면 기본값 사용
-            int initW = flpTodos.ClientSize.Width > 50 ? flpTodos.ClientSize.Width - 18 : 680;
-            var card = new Panel { Width = initW, Height = 84, BackColor = SURFACE, Margin = new Padding(0, 0, 0, 6), Cursor = Cursors.Hand };
+            // ── 카드 컨테이너 ──────────────────────────────────────
+            var card = new Panel
+            {
+                Height = 84, BackColor = SURFACE,
+                Margin = new Padding(0, 0, 0, 6), Cursor = Cursors.Hand,
+            };
 
-            card.Controls.Add(new Panel { Width = 4, Dock = DockStyle.Left, BackColor = todo.PriorityColor });
+            // ── 왼쪽 우선순위 색상 바 (4px) ───────────────────────
+            var barLeft = new Panel { Width = 4, Dock = DockStyle.Left, BackColor = todo.PriorityColor };
 
-            var chk     = new CheckBox { Checked = todo.IsCompleted, Location = new Point(14, 32), Size = new Size(18, 18) };
-            var lblIcon = new Label    { Text = todo.TypeIcon, Font = new Font("Segoe UI Emoji", 13f), Location = new Point(38, 12), Size = new Size(28, 28), TextAlign = ContentAlignment.MiddleCenter };
+            // ── 오른쪽 고정 패널 (D-Day + 우선순위 배지 + 수정 버튼) ─
+            var pnlRight = new Panel { Width = 160, Dock = DockStyle.Right, BackColor = SURFACE };
+            var lblDDay  = new Label
+            {
+                Text = todo.DDayText, Font = new Font("맑은 고딕", 9f, FontStyle.Bold),
+                ForeColor = todo.DDay <= 3 ? URGENT : SUBTEXT,
+                Location = new Point(0, 10), Size = new Size(52, 22),
+                TextAlign = ContentAlignment.MiddleCenter,
+            };
+            var lblPri = new Label
+            {
+                Text = todo.PriorityLabel, Font = new Font("맑은 고딕", 8f, FontStyle.Bold),
+                ForeColor = todo.PriorityColor,
+                BackColor = Color.FromArgb(30, todo.PriorityColor.R, todo.PriorityColor.G, todo.PriorityColor.B),
+                Location = new Point(56, 10), Size = new Size(44, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+            };
+            var btnEdit = MakeBtn("✏️", 28, 28);
+            btnEdit.Font = new Font("Segoe UI Emoji", 10f);
+            btnEdit.BackColor = SURFACE2;
+            btnEdit.Location  = new Point(120, 28);
+            btnEdit.Click    += (s, e) => OpenEditTodoForm(todo);
+            pnlRight.Controls.AddRange(new Control[] { lblDDay, lblPri, btnEdit });
+
+            // ── 가운데 내용 패널 (제목 + 부제목) ─────────────────
+            var pnlContent = new Panel { Dock = DockStyle.Fill, BackColor = SURFACE, Padding = new Padding(8, 4, 4, 4) };
 
             var lblTitle = new Label
             {
-                Text      = todo.Title + (todo.IsTeamWork ? "  👥" : ""),
-                Font      = new Font("맑은 고딕", 9.5f, todo.IsCompleted ? FontStyle.Strikeout : FontStyle.Bold),
+                Text = todo.Title + (todo.IsTeamWork ? "  👥" : ""),
+                Font = new Font("맑은 고딕", 9.5f, todo.IsCompleted ? FontStyle.Strikeout : FontStyle.Bold),
                 ForeColor = todo.IsCompleted ? SUBTEXT : TEXT,
-                Location  = new Point(70, 10), Size = new Size(10, 22),
+                Dock = DockStyle.Top, Height = 26,
                 TextAlign = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true, Tag = "title",
             };
+            var lblSub = new Label
+            {
+                Text = $"📅 {todo.DueDate}  |  {(string.IsNullOrEmpty(todo.Reason) ? todo.Source : todo.Reason)}",
+                Font = new Font("맑은 고딕", 8.5f), ForeColor = SUBTEXT,
+                Dock = DockStyle.Top, Height = 20,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true,
+            };
+            var lblCat = new Label
+            {
+                Text = todo.Category, Font = new Font("맑은 고딕", 8f, FontStyle.Bold),
+                ForeColor = ACCENT, Dock = DockStyle.Top, Height = 18,
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
 
-            var lblDDay = new Label { Text = todo.DDayText, Font = new Font("맑은 고딕", 9f, FontStyle.Bold), ForeColor = todo.DDay <= 3 ? URGENT : SUBTEXT, Size = new Size(58, 22), TextAlign = ContentAlignment.MiddleCenter };
-            var lblPri  = new Label { Text = todo.PriorityLabel, Font = new Font("맑은 고딕", 8f, FontStyle.Bold), ForeColor = todo.PriorityColor, BackColor = Color.FromArgb(22, todo.PriorityColor.R, todo.PriorityColor.G, todo.PriorityColor.B), Size = new Size(44, 20), TextAlign = ContentAlignment.MiddleCenter };
-            var lblSub  = new Label { Text = $"📅 {todo.DueDate}  |  {(string.IsNullOrEmpty(todo.Reason) ? todo.Source : todo.Reason)}", Font = new Font("맑은 고딕", 8.5f), ForeColor = SUBTEXT, Location = new Point(70, 36), Size = new Size(10, 18), AutoEllipsis = true };
-            var lblAct  = new Label { Text = todo.ActionItems.Count > 0 ? "✔ " + string.Join("  ·  ", todo.ActionItems.Take(2)) : "", Font = new Font("맑은 고딕", 8f), ForeColor = SUBTEXT, Location = new Point(70, 56), Size = new Size(10, 16), AutoEllipsis = true };
+            pnlContent.Controls.Add(lblCat);
+            pnlContent.Controls.Add(lblSub);
+            pnlContent.Controls.Add(lblTitle);
 
-            var btnEdit = MakeBtn("✏️", 28, 28);
-            btnEdit.Font      = new Font("Segoe UI Emoji", 10f);
-            btnEdit.BackColor = SURFACE2;
-            btnEdit.Click    += (s, e) => OpenEditTodoForm(todo);
-
+            var chk = new CheckBox
+            {
+                Checked = todo.IsCompleted, Size = new Size(18, 18),
+                Location = new Point(6, 33),
+            };
             chk.CheckedChanged += (s, e) =>
             {
                 todo.IsCompleted   = chk.Checked;
@@ -318,26 +359,17 @@ namespace KwuTodoAI
                 lblTitle.ForeColor = todo.IsCompleted ? SUBTEXT : TEXT;
             };
 
-            card.Controls.AddRange(new Control[] { chk, lblIcon, lblTitle, lblDDay, lblPri, btnEdit, lblSub, lblAct });
+            // ── 컨트롤 순서: Dock 처리를 위해 Fill을 마지막에 추가
+            card.Controls.Add(pnlContent);   // Fill (마지막 추가)
+            card.Controls.Add(pnlRight);     // Right
+            card.Controls.Add(barLeft);      // Left
+            card.Controls.Add(chk);          // absolute
 
-            // 레이아웃 함수 — 생성 직후 + Resize 때 모두 호출
-            void UpdateLayout(int w)
-            {
-                int titleW = Math.Max(10, w - 220);
-                lblTitle.Width    = titleW;
-                lblSub.Width      = Math.Max(10, w - 220);
-                lblAct.Width      = Math.Max(10, w - 200);
-                lblDDay.Location  = new Point(w - 158, 10);
-                lblPri.Location   = new Point(w - 94,  10);
-                btnEdit.Location  = new Point(w - 42,  28);
-            }
-
-            card.Resize      += (s, e) => UpdateLayout(card.Width);
-            card.MouseEnter  += (s, e) => card.BackColor = SURFACE2;
-            card.MouseLeave  += (s, e) => card.BackColor = SURFACE;
-
-            // 생성 직후 즉시 레이아웃 적용 (Resize 이벤트 대기 불필요)
-            UpdateLayout(initW);
+            // ── 이벤트 ────────────────────────────────────────────
+            card.MouseEnter     += (s, e) => { card.BackColor = pnlContent.BackColor = pnlRight.BackColor = SURFACE2; };
+            card.MouseLeave     += (s, e) => { card.BackColor = pnlContent.BackColor = pnlRight.BackColor = SURFACE; };
+            pnlContent.MouseEnter += (s, e) => { card.BackColor = pnlContent.BackColor = pnlRight.BackColor = SURFACE2; };
+            pnlContent.MouseLeave += (s, e) => { card.BackColor = pnlContent.BackColor = pnlRight.BackColor = SURFACE; };
 
             void open(object? s, EventArgs e) => ShowDetail(todo);
             card.Click += open; lblTitle.Click += open; lblSub.Click += open;
