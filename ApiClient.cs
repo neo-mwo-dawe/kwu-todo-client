@@ -90,7 +90,7 @@ namespace KwuTodoAI
 
         // [DELETE /todos/{id}]
         // 특정 TODO 항목을 서버에서 삭제합니다.
-        public async Task<bool> DeleteTodoAsync(int id)
+        public async Task<bool> DeleteTodoAsync(string id)
         {
             return await DeleteAsync(string.Format("/todos/{0}", id), "TODO 삭제");
         }

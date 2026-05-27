@@ -277,7 +277,13 @@ namespace KwuTodoAI
                 flpTodos.Controls.Add(new Label { Text = "할 일이 없습니다 🎉", Font = new Font("맑은 고딕", 11f), ForeColor = SUBTEXT, AutoSize = true, Margin = new Padding(20) });
                 return;
             }
-            foreach (var todo in _todos) flpTodos.Controls.Add(MakeCard(todo));
+            int cardW = flpTodos.ClientSize.Width > 50 ? flpTodos.ClientSize.Width - 6 : 700;
+            foreach (var todo in _todos)
+            {
+                var card = MakeCard(todo);
+                card.Width = cardW;
+                flpTodos.Controls.Add(card);
+            }
         }
 
         private Panel MakeCard(TodoItem todo)
