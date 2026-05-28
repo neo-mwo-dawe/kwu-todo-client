@@ -1,2 +1,7 @@
 bin/
 obj/
+
+# Visual Studio cache / 사용자 설정 파일
+.vs/
+*.user
+*.suo
