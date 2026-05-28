@@ -1,5 +1,14 @@
 // 통합 데이터 모델 — 지원(기반) + 유빈(UI 확장 필드) 병합
 // Python 서버 GenerateTodoResponse와 필드명 일치
+//
+// ─────────────────────────────────────────────────────────────────────
+// [변경 사항] — 원본 (지원의 develop 브랜치) 대비
+//   1. PriorityLabel  : 서버의 Priority 문자열 기반 → "마감일(DDay) 기반"으로 변경
+//                       (D≤3 긴급 / D≤7 높음 / D≤14 안전 / 그 외 낮음)
+//   2. PriorityColor  : Priority 문자열 기반 → 동일한 DDay 기반 4단계 색상
+//   3. DeadlineColor  : 별도 4단계 → PriorityColor 와 동일 (단일 진실 원천)
+//   ※ 변경 위치마다 "[변경]" 주석 표시
+// ─────────────────────────────────────────────────────────────────────
 
 using System;
 using System.Collections.Generic;
@@ -30,14 +39,21 @@ namespace KwuTodoAI
         [JsonPropertyName("isAIGenerated")]public bool         IsAIGenerated { get; set; }
 
         // ── UI 표시용 계산 속성 (JSON 제외) ────────────────────────────
-        // 서버는 "high"/"medium"/"low" 반환 → UI에 한국어로 표시
+        // [변경] 원본은 Priority 문자열("high"/"medium"/"low")로 라벨 결정
+        //        → 마감일(DDay) 기준으로 변경 (긴급/높음/안전/낮음)
+        // ※ 우선순위는 "마감일(DDay)" 기준으로 자동 계산해 표시합니다.
+        //   - D-DAY ~ D-3   : 긴급 (빨강)
+        //   - D-4   ~ D-7   : 높음 (주황)
+        //   - D-8   ~ D-14  : 안전 (초록)
+        //   - 그 이상       : 낮음 (회색)
+
         [JsonIgnore]
-        public string PriorityLabel => Priority switch
+        public string PriorityLabel => DDay switch
         {
-            "high"   => "높음",
-            "medium" => "보통",
-            "low"    => "낮음",
-            _        => Priority,   // 이미 한국어이거나 알 수 없는 값은 그대로
+            <= 3  => "긴급",
+            <= 7  => "높음",
+            <= 14 => "안전",
+            _     => "낮음",
         };
 
         [JsonIgnore]
@@ -54,25 +70,22 @@ namespace KwuTodoAI
             _         => "📌",
         };
 
-        // 우선순위 색상 — 영어/한국어 모두 처리
+        // ── 우선순위 색상 — 마감일(DDay) 기준 ─────────────────────────
+        // [변경] 원본은 Priority 문자열로 색상 결정 → DDay 기준으로 변경
+        //   긴급(빨강), 높음(주황), 안전(초록), 낮음(회색)
         [JsonIgnore]
-        public Color PriorityColor => Priority switch
+        public Color PriorityColor => DDay switch
         {
-            "high"   or "높음" or "긴급" => Color.FromArgb(230, 130, 30),
-            "medium" or "보통"           => Color.FromArgb(60,  140, 220),
-            "low"    or "낮음"           => Color.FromArgb(130, 140, 155),
-            _                            => Color.FromArgb(130, 140, 155),
+            <= 3  => Color.FromArgb(220, 60,  60),    // 긴급 (빨강)
+            <= 7  => Color.FromArgb(230, 130, 30),    // 높음 (주황)
+            <= 14 => Color.FromArgb( 55, 175, 115),   // 안전 (초록)
+            _     => Color.FromArgb(130, 140, 155),   // 낮음 (회색)
         };
 
-        // 마감 임박도 색상 (카드 왼쪽 바용)
+        // 마감 임박도 색상 (카드 왼쪽 바용) — PriorityColor와 동일 기준
+        // [변경] 원본은 별도 switch로 색을 계산 → 중복 제거, PriorityColor 재사용
         [JsonIgnore]
-        public Color DeadlineColor => DDay switch
-        {
-            <= 0 => Color.FromArgb(220, 60,  60),
-            <= 3 => Color.FromArgb(230, 130, 30),
-            <= 7 => Color.FromArgb(60,  140, 220),
-            _    => Color.FromArgb(130, 140, 155),
-        };
+        public Color DeadlineColor => PriorityColor;
 
         // ── 편의 메서드 ───────────────────────────────────────────────
         public void RecalculateDDay()
