@@ -588,7 +588,8 @@ namespace KwuTodoAI
         //   AddTodoForm / EditTodoForm 으로 분리 (각각 디자이너 분리형)
         private void OpenAddTodoForm()
         {
-            using var form = new AddTodoForm(_http);
+            // [변경] 현재 테마 (_isDark)를 추가 폼에 전달 → 다크모드 일관성
+            using var form = new AddTodoForm(_http, _isDark);
             if (form.ShowDialog(this) == DialogResult.OK && form.Result != null)
             {
                 _todos.Add(form.Result);
@@ -601,7 +602,8 @@ namespace KwuTodoAI
 
         private void OpenEditTodoForm(TodoItem todo)
         {
-            using var form = new EditTodoForm(_http, todo);
+            // [변경] 현재 테마 (_isDark)를 편집 폼에 전달 → 다크모드 일관성
+            using var form = new EditTodoForm(_http, todo, _isDark);
             if (form.ShowDialog(this) == DialogResult.OK && form.Result != null)
             {
                 int idx = _todos.FindIndex(t => t.Id == todo.Id);

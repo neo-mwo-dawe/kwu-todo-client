@@ -100,7 +100,7 @@ namespace KwuTodoAI
             lblHeader.ForeColor = Color.FromArgb(82, 130, 255);
             lblHeader.Location  = new Point(22, 18);
             lblHeader.Name      = "lblHeader";
-            lblHeader.Text      = "TODO 추가 / 편집";
+            lblHeader.Text      = "TODO 추가";   // [변경] EditTodoForm 과 헤더 텍스트 차별화
 
             // ── lblTitleCap ───────────────────────────────────────
             lblTitleCap.AutoSize = true;
