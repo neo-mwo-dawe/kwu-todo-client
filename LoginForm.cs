@@ -17,6 +17,7 @@
 
 using System;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace KwuTodoAI
@@ -65,14 +66,21 @@ namespace KwuTodoAI
                 ApplyTheme();
             };
 
-            // 로그인 버튼
-            btnLogin.Click += (s, e) => DoLogin();
+            // 로그인 버튼 (async — KLAS 서버 호출이 수 초 걸릴 수 있음)
+            btnLogin.Click += async (s, e) => await DoLoginAsync();
 
             // 학번 입력칸에서 Enter → 비밀번호 칸으로 포커스 이동
             txtId.KeyDown  += (s, e) => { if (e.KeyCode == Keys.Enter) txtPw.Focus(); };
 
             // 비밀번호 입력칸에서 Enter → 즉시 로그인 시도
-            txtPw.KeyDown  += (s, e) => { if (e.KeyCode == Keys.Enter) DoLogin(); };
+            txtPw.KeyDown  += async (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    await DoLoginAsync();
+                }
+            };
 
             // [변경] 신규 — 창 크기가 바뀌거나 처음 표시될 때 카드(pnlCard)를 중앙에 재정렬
             Resize += (s, e) => CenterCard();
@@ -92,21 +100,53 @@ namespace KwuTodoAI
         }
 
         /// <summary>
-        /// 로그인 처리.
-        /// (현재는 빈 값 검증만; 실제 서버 인증은 향후 ApiClient 로 연동 예정.)
+        /// KLAS 로그인 처리 (성호 통합).
+        /// 빈 값 검증 → ApiClient.LoginAsync 호출 → 성공 시 MainForm 진입.
         /// </summary>
-        private void DoLogin()
+        private async Task DoLoginAsync()
         {
-            // [변경] 원본은 오류 메시지 초기화 없이 if 분기 시작 → 잔류 메시지 제거 보강
-            lblErr.Text = "";  // 이전 오류 메시지 초기화
+            lblErr.Text = "";   // 이전 오류 메시지 초기화
 
             if (string.IsNullOrWhiteSpace(txtId.Text))
-            { lblErr.Text = "⚠ 학번을 입력해주세요."; return; }
+            { lblErr.Text = "⚠ 학번을 입력해주세요."; txtId.Focus(); return; }
 
             if (string.IsNullOrWhiteSpace(txtPw.Text))
-            { lblErr.Text = "⚠ 비밀번호를 입력해주세요."; return; }
+            { lblErr.Text = "⚠ 비밀번호를 입력해주세요."; txtPw.Focus(); return; }
 
-            // 새 MainForm 을 띄우고 로그인 폼은 숨김 → MainForm 닫힐 때 함께 종료
+            // 로그인 진행 중 UI 잠금
+            btnLogin.Enabled = false;
+            txtId.Enabled    = false;
+            txtPw.Enabled    = false;
+            string originalText = btnLogin.Text;
+            btnLogin.Text = "로그인 중...";
+            lblErr.ForeColor = SUBTEXT;
+            lblErr.Text = "🔄 KLAS 인증 중입니다. 잠시만 기다려주세요...";
+
+            LoginResult result;
+            try
+            {
+                result = await ApiClient.Instance.LoginAsync(txtId.Text.Trim(), txtPw.Text);
+            }
+            finally
+            {
+                btnLogin.Enabled = true;
+                txtId.Enabled    = true;
+                txtPw.Enabled    = true;
+                btnLogin.Text    = originalText;
+            }
+
+            if (!result.Success)
+            {
+                lblErr.ForeColor = Color.FromArgb(220, 60, 60);
+                lblErr.Text = string.IsNullOrEmpty(result.Message)
+                    ? "⚠ 로그인에 실패했습니다."
+                    : "⚠ " + result.Message;
+                txtPw.Focus();
+                txtPw.SelectAll();
+                return;
+            }
+
+            // 로그인 성공 → MainForm 진입
             var main = new MainForm(_isDark);
             main.Show();
             Hide();

@@ -15,6 +15,16 @@ using System.Windows.Forms;
 
 namespace KwuTodoAI
 {
+    // ── KLAS 로그인 결과 모델 (성호 통합) ────────────────────
+    public class LoginResult
+    {
+        public bool   Success     { get; set; } = false;
+        public string Message     { get; set; } = "";
+        public string StudentName { get; set; } = "";
+        public string StudentId   { get; set; } = "";
+        public string Semester    { get; set; } = "";
+    }
+
     /// <summary>
     /// Python FastAPI 서버(localhost:8000)와 HTTP로 통신하는 클라이언트입니다.
     /// ApiClient.Instance 싱글턴 또는 인스턴스를 직접 생성해 사용하세요.
@@ -25,8 +35,8 @@ namespace KwuTodoAI
         // Python FastAPI 서버 기본 주소
         private const string BASE_URL = "http://localhost:8000";
 
-        // 요청 타임아웃 (초) — AI 생성은 시간이 걸릴 수 있으므로 넉넉하게 설정
-        private const int TIMEOUT_SECONDS = 30;
+        // 요청 타임아웃 (초) — KLAS 크롤링은 30초 이상 걸릴 수 있으므로 60초로 설정
+        private const int TIMEOUT_SECONDS = 60;
 
         // HttpClient는 재사용이 권장됩니다 (소켓 고갈 방지)
         private readonly HttpClient _httpClient;
@@ -53,6 +63,58 @@ namespace KwuTodoAI
             _httpClient.DefaultRequestHeaders.Accept.Add(
                 new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
             );
+        }
+
+        // =============================================================
+        //  KLAS 인증 API (성호 통합)
+        // =============================================================
+
+        // [POST /auth/login]
+        // 학번/비밀번호로 광운대 KLAS 실제 로그인 — LoginForm에서 호출
+        public async Task<LoginResult> LoginAsync(string studentId, string password)
+        {
+            try
+            {
+                var body = JsonSerializer.Serialize(new
+                {
+                    student_id = studentId,
+                    password   = password,
+                });
+                var content  = new StringContent(body, Encoding.UTF8, "application/json");
+                var response = await _httpClient.PostAsync("/auth/login", content);
+                string json  = await response.Content.ReadAsStringAsync();
+
+                return JsonSerializer.Deserialize<LoginResult>(json, _jsonOptions)
+                    ?? new LoginResult { Success = false, Message = "응답 파싱 실패" };
+            }
+            catch (HttpRequestException)  { ShowServerOfflineMessage("로그인"); return new LoginResult(); }
+            catch (TaskCanceledException) { ShowTimeoutMessage("로그인");       return new LoginResult(); }
+            catch (Exception ex)          { ShowGenericErrorMessage("로그인", ex); return new LoginResult(); }
+        }
+
+        // [POST /auth/logout]
+        // KLAS 로그아웃 — 앱 종료 시 호출
+        public async Task LogoutAsync()
+        {
+            try
+            {
+                await _httpClient.PostAsync("/auth/logout",
+                    new StringContent("{}", Encoding.UTF8, "application/json"));
+            }
+            catch { /* 로그아웃 실패는 무시 */ }
+        }
+
+        // [GET /auth/status]
+        // 현재 KLAS 로그인 상태 확인 (앱 시작 시 자동 복원용)
+        public async Task<bool> IsLoggedInAsync()
+        {
+            try
+            {
+                string json = await _httpClient.GetStringAsync("/auth/status");
+                var result  = JsonSerializer.Deserialize<JsonElement>(json);
+                return result.GetProperty("logged_in").GetBoolean();
+            }
+            catch { return false; }
         }
 
         // ── TODO API ──────────────────────────────────────────────
