@@ -416,7 +416,10 @@ namespace KwuTodoAI
             var lblDDay = new Label
             {
                 Text = todo.DDayText, Font = new Font("맑은 고딕", 10f, FontStyle.Bold),
-                ForeColor = todo.DDay <= 3 ? URGENT : SUBTEXT,
+                // [변경] D-Day 글자색을 4단계 PriorityColor 로 통일
+                //   (긴급 빨강 / 높음 주황 / 안전 초록 / 낮음 회색)
+                //   원본 및 이전 버전은 2색만 사용 (DDay<=3 빨강 / 그 외 회색)
+                ForeColor = todo.PriorityColor,
                 AutoSize = false, Size = new Size(60, 24),
                 Location = new Point(6, 18), TextAlign = ContentAlignment.MiddleCenter,
             };
