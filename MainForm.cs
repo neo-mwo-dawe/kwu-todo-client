@@ -130,7 +130,9 @@ namespace KwuTodoAI
             pnlCalendar.Controls.Clear();
 
             int cellW = 38, cellH = 32;
-            string[] dn = { "월", "화", "수", "목", "금", "토", "일" };
+            // [변경] 요일 순서를 월~일 → 일~토 로 변경
+            //   · col 0 = 일요일(SUN_C 빨강), col 6 = 토요일(SAT_C 파랑)
+            string[] dn = { "일", "월", "화", "수", "목", "금", "토" };
 
             for (int i = 0; i < 7; i++)
                 pnlCalendar.Controls.Add(new Label
@@ -138,7 +140,8 @@ namespace KwuTodoAI
                     Text = dn[i], Size = new Size(cellW, 20), Location = new Point(i * cellW, 0),
                     TextAlign = ContentAlignment.MiddleCenter,
                     Font = new Font("맑은 고딕", 8.5f, FontStyle.Bold),
-                    ForeColor = i == 5 ? SAT_C : i == 6 ? SUN_C : SUBTEXT,
+                    // [변경] 헤더 색 — col 0(일) 빨강, col 6(토) 파랑, 평일 SUBTEXT
+                    ForeColor = i == 0 ? SUN_C : i == 6 ? SAT_C : SUBTEXT,
                 });
 
             var dueDates = _todos
@@ -147,7 +150,9 @@ namespace KwuTodoAI
                 .ToHashSet();
 
             DateTime first = new DateTime(_currentMonth.Year, _currentMonth.Month, 1);
-            int startCol   = ((int)first.DayOfWeek + 6) % 7;
+            // [변경] DayOfWeek (Sunday=0..Saturday=6) 를 그대로 사용
+            //   (이전엔 +6 % 7 로 월요일 시작에 맞췄던 계산이 필요 없음)
+            int startCol   = (int)first.DayOfWeek;
             int days       = DateTime.DaysInMonth(_currentMonth.Year, _currentMonth.Month);
 
             for (int d = 1; d <= days; d++)
@@ -162,14 +167,15 @@ namespace KwuTodoAI
 
                 // [변경] 요일 색상 규칙 (원본: 평일/주말 색을 항상 다르게 표시)
                 //   · 평상시(미선택)         : 모든 요일 TEXT 색 (라이트=검정, 다크=흰색)
-                //   · 선택했을 때 (isSel)   : 토=파랑, 일=빨강, 평일=진한 남색 (하늘색 배경 위 가독성)
+                //   · 선택했을 때 (isSel)   : 일=빨강, 토=파랑, 평일=진한 남색 (하늘색 배경 위 가독성)
                 //   · 오늘(isToday)         : 흰색 (ACCENT 진한 파란 배경 위)
+                //   ※ 요일 순서 일~토 로 변경됨 → col 0 = 일요일, col 6 = 토요일
                 Color foreColor;
                 if (isToday)
                     foreColor = Color.White;
                 else if (isSel)
-                    foreColor = col == 5 ? SAT_C
-                              : col == 6 ? SUN_C
+                    foreColor = col == 0 ? SUN_C
+                              : col == 6 ? SAT_C
                               : Color.FromArgb(20, 30, 60);
                 else
                     foreColor = TEXT;
@@ -457,7 +463,11 @@ namespace KwuTodoAI
                 Dock = DockStyle.Fill, BackColor = SURFACE,
                 Padding = new Padding(6, 8, 8, 8),
             };
-            string reasonRaw   = string.IsNullOrEmpty(todo.Reason) ? todo.Source : todo.Reason;
+            // [변경] null 안전 처리 — 서버가 source_event 를 null 로 반환하면
+            //   reasonRaw 가 null 이 되어 .Length 호출 시 NullReferenceException 발생하던 문제 해결
+            string reasonRaw   = !string.IsNullOrEmpty(todo.Reason) ? todo.Reason
+                                : !string.IsNullOrEmpty(todo.Source) ? todo.Source
+                                : "";
             string reasonShort = reasonRaw.Length > 50 ? reasonRaw.Substring(0, 50) + "…" : reasonRaw;
 
             var lblTitle = new Label
