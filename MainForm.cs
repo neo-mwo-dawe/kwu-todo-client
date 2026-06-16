@@ -455,7 +455,26 @@ namespace KwuTodoAI
             };
             btnEdit.FlatAppearance.BorderSize = 0;
             btnEdit.Click += (s, e) => OpenEditTodoForm(todo);
-            pnlRight.Controls.AddRange(new Control[] { lblDDay, lblPri, btnEdit });
+
+            // [신규] 삭제(휴지통) 버튼 — 편집 버튼 왼쪽에 배치
+            //   Segoe Fluent Icons / MDL2 Assets 의 Delete 글리프(),
+            //   파괴적 동작이라 빨강 계열로 구분.
+            var btnDelete = new Button
+            {
+                Text = "",   // Segoe MDL2/Fluent Icons: 삭제(휴지통) 글리프
+                Size = new Size(30, 30),
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = new Font("Segoe Fluent Icons", 12f),
+                BackColor = SURFACE2,
+                ForeColor = Color.FromArgb(210, 70, 70),
+                Location = new Point(62, 60),
+                TextAlign = ContentAlignment.MiddleCenter,
+                UseVisualStyleBackColor = false,
+            };
+            btnDelete.FlatAppearance.BorderSize = 0;
+            btnDelete.Click += async (s, e) => await DeleteTodoAsync(todo);
+
+            pnlRight.Controls.AddRange(new Control[] { lblDDay, lblPri, btnDelete, btnEdit });
 
             // 가운데 내용 패널
             var pnlContent = new Panel
@@ -627,6 +646,34 @@ namespace KwuTodoAI
                 RebuildCalendar();
                 RebuildScheduleList();
             }
+        }
+
+        // ── TODO 삭제 ─────────────────────────────────────────────
+        // [신규] 카드의 휴지통 버튼 → 확인 후 서버 삭제 + 화면에서 제거.
+        //   서버에 저장된 수동 TODO 는 DELETE /todos/{id} 로 삭제된다.
+        //   AI 생성 항목처럼 서버 미저장이면 404 여도 무시하고 로컬에서 제거한다.
+        //   (단, 다음 'AI 생성' 시 실시간 KLAS 일정은 다시 수집될 수 있음 — 정상)
+        private async Task DeleteTodoAsync(TodoItem todo)
+        {
+            var confirm = MessageBox.Show(
+                this,
+                $"이 할 일을 삭제할까요?\n\n• {todo.Title}",
+                "삭제 확인",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm != DialogResult.Yes) return;
+
+            try
+            {
+                await _http.DeleteAsync(
+                    $"http://localhost:8000/todos/{Uri.EscapeDataString(todo.Id)}");
+            }
+            catch { /* 네트워크 오류/미저장 항목 — 로컬 제거로 진행 */ }
+
+            _todos.RemoveAll(t => t.Id == todo.Id);
+            UpdateStats(ComputeStats(GetVisibleTodos()));
+            RebuildTodoList();
+            RebuildCalendar();
+            RebuildScheduleList();
         }
     }
 }
