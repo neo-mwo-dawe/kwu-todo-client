@@ -1,34 +1,7 @@
-# Build outputs
 bin/
 obj/
 
-# Visual Studio
+# Visual Studio cache / 사용자 설정 파일
 .vs/
 *.user
 *.suo
-*.rsuser
-*.userosscache
-*.sln.docstates
-
-# NuGet
-packages/
-*.nupkg
-project.lock.json
-project.fragment.lock.json
-artifacts/
-
-# Test results
-TestResults/
-*.trx
-*.coverage
-
-# OS
-Thumbs.db
-.DS_Store
-Desktop.ini
-
-# 팀 개인 파일 (GitHub에 올리지 말 것)
-*.jpg
-*.jpeg
-*.png
-*.zip

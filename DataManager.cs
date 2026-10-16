@@ -10,10 +10,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Windows.Forms;
-using Newtonsoft.Json;
 
-namespace KWUStudentManager
+namespace KwuTodoAI
 {
     /// <summary>
     /// JSON 기반 로컬 데이터 저장/불러오기를 담당합니다.
@@ -84,7 +84,7 @@ namespace KWUStudentManager
                     Directory.CreateDirectory(SaveFolder);
 
                 string path = Path.Combine(SaveFolder, fileName);
-                string json = JsonConvert.SerializeObject(data, Formatting.Indented);
+                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
 
                 // BOM 없는 UTF-8로 저장 (Python 서버와 호환)
                 File.WriteAllText(path, json,
@@ -116,11 +116,10 @@ namespace KWUStudentManager
                 string json = File.ReadAllText(path, Encoding.UTF8);
                 if (string.IsNullOrWhiteSpace(json)) return new List<T>();
 
-                return JsonConvert.DeserializeObject<List<T>>(json) ?? new List<T>();
+                return JsonSerializer.Deserialize<List<T>>(json) ?? new List<T>();
             }
-            catch (JsonException ex)
+            catch (System.Text.Json.JsonException ex)
             {
-                // JSON 형식 깨짐 → 백업 후 초기화
                 MessageBox.Show(
                     string.Format("'{0}' 파일이 손상되어 초기화합니다.\n오류: {1}",
                         fileName, ex.Message),

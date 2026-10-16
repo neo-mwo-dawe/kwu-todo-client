@@ -9,13 +9,22 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using KWUStudentManager.Models;
-using Newtonsoft.Json;
 
-namespace KWUStudentManager
+namespace KwuTodoAI
 {
+    // ── KLAS 로그인 결과 모델 (성호 통합) ────────────────────
+    public class LoginResult
+    {
+        public bool   Success     { get; set; } = false;
+        public string Message     { get; set; } = "";
+        public string StudentName { get; set; } = "";
+        public string StudentId   { get; set; } = "";
+        public string Semester    { get; set; } = "";
+    }
+
     /// <summary>
     /// Python FastAPI 서버(localhost:8000)와 HTTP로 통신하는 클라이언트입니다.
     /// ApiClient.Instance 싱글턴 또는 인스턴스를 직접 생성해 사용하세요.
@@ -26,8 +35,8 @@ namespace KWUStudentManager
         // Python FastAPI 서버 기본 주소
         private const string BASE_URL = "http://localhost:8000";
 
-        // 요청 타임아웃 (초) — AI 생성은 시간이 걸릴 수 있으므로 넉넉하게 설정
-        private const int TIMEOUT_SECONDS = 30;
+        // 요청 타임아웃 (초) — KLAS 크롤링은 30초 이상 걸릴 수 있으므로 60초로 설정
+        private const int TIMEOUT_SECONDS = 60;
 
         // HttpClient는 재사용이 권장됩니다 (소켓 고갈 방지)
         private readonly HttpClient _httpClient;
@@ -35,7 +44,10 @@ namespace KWUStudentManager
         // ── 싱글턴 ────────────────────────────────────────────────
         // 앱 전역에서 공유하는 싱글턴 인스턴스
         // 사용법: ApiClient.Instance.GetTodosAsync()
-        private static ApiClient _instance;
+        private static readonly JsonSerializerOptions _jsonOptions =
+            new() { PropertyNameCaseInsensitive = true };
+
+        private static ApiClient? _instance;
         public static ApiClient Instance => _instance ?? (_instance = new ApiClient());
 
         // ── 생성자 ────────────────────────────────────────────────
@@ -53,14 +65,66 @@ namespace KWUStudentManager
             );
         }
 
+        // =============================================================
+        //  KLAS 인증 API (성호 통합)
+        // =============================================================
+
+        // [POST /auth/login]
+        // 학번/비밀번호로 광운대 KLAS 실제 로그인 — LoginForm에서 호출
+        public async Task<LoginResult> LoginAsync(string studentId, string password)
+        {
+            try
+            {
+                var body = JsonSerializer.Serialize(new
+                {
+                    student_id = studentId,
+                    password   = password,
+                });
+                var content  = new StringContent(body, Encoding.UTF8, "application/json");
+                var response = await _httpClient.PostAsync("/auth/login", content);
+                string json  = await response.Content.ReadAsStringAsync();
+
+                return JsonSerializer.Deserialize<LoginResult>(json, _jsonOptions)
+                    ?? new LoginResult { Success = false, Message = "응답 파싱 실패" };
+            }
+            catch (HttpRequestException)  { ShowServerOfflineMessage("로그인"); return new LoginResult(); }
+            catch (TaskCanceledException) { ShowTimeoutMessage("로그인");       return new LoginResult(); }
+            catch (Exception ex)          { ShowGenericErrorMessage("로그인", ex); return new LoginResult(); }
+        }
+
+        // [POST /auth/logout]
+        // KLAS 로그아웃 — 앱 종료 시 호출
+        public async Task LogoutAsync()
+        {
+            try
+            {
+                await _httpClient.PostAsync("/auth/logout",
+                    new StringContent("{}", Encoding.UTF8, "application/json"));
+            }
+            catch { /* 로그아웃 실패는 무시 */ }
+        }
+
+        // [GET /auth/status]
+        // 현재 KLAS 로그인 상태 확인 (앱 시작 시 자동 복원용)
+        public async Task<bool> IsLoggedInAsync()
+        {
+            try
+            {
+                string json = await _httpClient.GetStringAsync("/auth/status");
+                var result  = JsonSerializer.Deserialize<JsonElement>(json);
+                return result.GetProperty("logged_in").GetBoolean();
+            }
+            catch { return false; }
+        }
+
         // ── TODO API ──────────────────────────────────────────────
 
         // [GET /todos/generate]
         // 크롤링 + LLM 분석으로 AI가 생성한 TODO 목록을 가져옵니다.
-        // AI 처리 시간이 있으므로 타임아웃이 길게 설정되어 있습니다.
         public async Task<List<TodoItem>> GetAIGeneratedTodosAsync()
         {
-            return await GetAsync<List<TodoItem>>("/todos/generate", "AI TODO 생성");
+            var response = await GetAsync<TodoResponse>("/todos/generate", "AI TODO 생성");
+            return response?.Todos ?? new List<TodoItem>();
         }
 
         // [GET /todos]
@@ -88,7 +152,7 @@ namespace KWUStudentManager
 
         // [DELETE /todos/{id}]
         // 특정 TODO 항목을 서버에서 삭제합니다.
-        public async Task<bool> DeleteTodoAsync(int id)
+        public async Task<bool> DeleteTodoAsync(string id)
         {
             return await DeleteAsync(string.Format("/todos/{0}", id), "TODO 삭제");
         }
@@ -128,23 +192,20 @@ namespace KWUStudentManager
             try
             {
                 string json = await _httpClient.GetStringAsync(endpoint);
-                return JsonConvert.DeserializeObject<T>(json) ?? new T();
+                return JsonSerializer.Deserialize<T>(json, _jsonOptions) ?? new T();
             }
             catch (HttpRequestException)
             {
-                // 서버 미실행 또는 네트워크 오류
                 ShowServerOfflineMessage(actionName);
                 return new T();
             }
             catch (TaskCanceledException)
             {
-                // 타임아웃
                 ShowTimeoutMessage(actionName);
                 return new T();
             }
-            catch (JsonException ex)
+            catch (System.Text.Json.JsonException ex)
             {
-                // 서버 응답 형식 불일치
                 MessageBox.Show(
                     string.Format("서버 응답을 파싱하는 중 오류가 발생했습니다.\n작업: {0}\n오류: {1}",
                         actionName, ex.Message),
@@ -163,7 +224,7 @@ namespace KWUStudentManager
         {
             try
             {
-                string json     = JsonConvert.SerializeObject(data);
+                string json     = JsonSerializer.Serialize(data, _jsonOptions);
                 var    content  = new StringContent(json, Encoding.UTF8, "application/json");
                 var    response = await _httpClient.PostAsync(endpoint, content);
                 return response.IsSuccessStatusCode;
@@ -178,7 +239,7 @@ namespace KWUStudentManager
         {
             try
             {
-                string json     = JsonConvert.SerializeObject(data);
+                string json     = JsonSerializer.Serialize(data, _jsonOptions);
                 var    content  = new StringContent(json, Encoding.UTF8, "application/json");
                 var    response = await _httpClient.PutAsync(endpoint, content);
                 return response.IsSuccessStatusCode;
